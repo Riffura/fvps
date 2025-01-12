@@ -1,6 +1,4 @@
-#linux-run.sh LINUX_USER_PASSWORD NGROK_AUTH_TOKEN LINUX_USERNAME LINUX_MACHINE_NAME
 #!/bin/bash
-# /home/runner/.ngrok2/ngrok.yml
 
 sudo useradd -m $LINUX_USERNAME
 sudo adduser $LINUX_USERNAME sudo
@@ -13,27 +11,22 @@ if [[ -z "$LINUX_USER_PASSWORD" ]]; then
   exit 3
 fi
 
-echo "### Install Playit ###"
+echo "### Install Docker ###"
+sudo apt-get install -y docker.io docker-compose
 
-wget -q https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64
-chmod +x ./playit-linux-amd64
+echo "### Create docker-compose.yml for Playit ###"
+cat <<EOF > docker-compose.yml
+version: '3'
 
-echo "### Update user: $USER password ###"
-echo -e "$LINUX_USER_PASSWORD\n$LINUX_USER_PASSWORD" | sudo passwd "$USER"
+services:
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:0.15
+    network_mode: host
+    environment:
+    - SECRET_KEY=$SECRET_KEY
+EOF
 
-echo "### Start playit proxy for 22 port ###"
-./playit-linux-amd64
+echo "### Start Playit with Docker ###"
+docker-compose up -d
 
 sleep 10
-HAS_ERRORS=$(grep "command failed" < .ngrok.log)
-
-if [[ -z "$HAS_ERRORS" ]]; then
-  echo ""
-  echo "=========================================="
-  echo "To connect: $(grep -o -E "tcp://(.+)" < .ngrok.log | sed "s/tcp:\/\//ssh $USER@/" | sed "s/:/ -p /")"
-  echo "or conenct with $(grep -o -E "tcp://(.+)" < .ngrok.log | sed "s/tcp:\/\//ssh (Your Linux Username)@/" | sed "s/:/ -p /")"
-  echo "=========================================="
-else
-  echo "$HAS_ERRORS"
-  exit 4
-fi
